@@ -1,0 +1,39 @@
+// budget_bee_app.dart // Main entry point for the Budget Bee App
+
+import 'package:flutter/material.dart'; import 'package:budget_bee/screens/home_screen.dart';
+
+void main() { runApp(BudgetBeeApp()); }
+
+class BudgetBeeApp extends StatelessWidget { @override Widget build(BuildContext context) { return MaterialApp( title: 'Budget Bee', theme: ThemeData( primarySwatch: Colors.teal, visualDensity: VisualDensity.adaptivePlatformDensity, ), home: HomeScreen(), ); } }
+
+// models/expense.dart class Expense { final int? id; final String category; final double amount; final DateTime date;
+
+Expense({this.id, required this.category, required this.amount, required this.date});
+
+Map<String, dynamic> toMap() { return { 'id': id, 'category': category, 'amount': amount, 'date': date.toIso8601String(), }; }
+
+factory Expense.fromMap(Map<String, dynamic> map) { return Expense( id: map['id'], category: map['category'], amount: map['amount'], date: DateTime.parse(map['date']), ); } }
+
+// db/db_helper.dart import 'package:sqflite/sqflite.dart'; import 'package:path/path.dart'; import '../models/expense.dart';
+
+class DBHelper { static Future<Database> initDb() async { return openDatabase( join(await getDatabasesPath(), 'budgetbee.db'), onCreate: (db, version) { return db.execute( 'CREATE TABLE expenses(id INTEGER PRIMARY KEY, category TEXT, amount REAL, date TEXT)', ); }, version: 1, ); }
+
+static Future<void> insertExpense(Expense expense) async { final db = await initDb(); await db.insert('expenses', expense.toMap(), conflictAlgorithm: ConflictAlgorithm.replace); }
+
+static Future<List<Expense>> fetchExpenses() async { final db = await initDb(); final List<Map<String, dynamic>> maps = await db.query('expenses'); return List.generate(maps.length, (i) { return Expense.fromMap(maps[i]); }); } }
+
+// screens/home_screen.dart import 'package:flutter/material.dart'; import '../models/expense.dart'; import '../db/db_helper.dart';
+
+class HomeScreen extends StatefulWidget { @override _HomeScreenState createState() => _HomeScreenState(); }
+
+class _HomeScreenState extends State<HomeScreen> { List<Expense> _expenses = [];
+
+@override void initState() { super.initState(); _loadExpenses(); }
+
+void _loadExpenses() async { final data = await DBHelper.fetchExpenses(); setState(() { _expenses = data; }); }
+
+void _addExpense() async { final newExpense = Expense( category: 'Groceries', amount: 50.0, date: DateTime.now(), ); await DBHelper.insertExpense(newExpense); _loadExpenses(); }
+
+@override Widget build(BuildContext context) { return Scaffold( appBar: AppBar(title: Text('Budget Bee')), body: ListView.builder( itemCount: _expenses.length, itemBuilder: (ctx, index) { final exp = _expenses[index]; return ListTile( title: Text(exp.category), subtitle: Text('${exp.amount} on ${exp.date.toLocal().toShortDateString()}'), ); }, ), floatingActionButton: FloatingActionButton( onPressed: _addExpense, child: Icon(Icons.add), ), ); } }
+
+extension DateFormatting on DateTime { String toShortDateString() { return "${this.day}/${this.month}/${this.year}"; } }
